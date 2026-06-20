@@ -1,4 +1,5 @@
-import { Elysia, t } from 'elysia';
+import { Elysia, t } from '../_compat/elysia.ts';
+
 import { generate, generateStream } from '../llm/generate.ts';
 import { countTokens } from '../llm/tokenize.ts';
 import { AppError } from '../types.ts';

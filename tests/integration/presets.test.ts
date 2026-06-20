@@ -1,11 +1,13 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { setupDb, teardownDb, FIXTURES } from '../setup.ts';
 import { createPreset, getPreset, updatePreset } from '../../src/core/presets.ts';
-import { createConnection, activateConnection } from '../../src/core/connections.ts';
-import { setSetting } from '../../src/core/settings.ts';
+import { createConnection, activateConnection, getActive } from '../../src/core/connections.ts';
+import { setSetting, getSetting } from '../../src/core/settings.ts';
+
 
 // Lucid Loom is a 445KB real-world preset with 326 prompts, regex scripts,
 // and every sampling param under the sun. If we can store this and
@@ -89,9 +91,8 @@ describe('generate request building', () => {
 
     // The actual fetch + spread is exercised by integration/generate.test.ts
     // with a mock upstream. Here we just verify the wiring.
-    const { getActive } = require('../../src/core/connections.ts');
-    const { getSetting } = require('../../src/core/settings.ts');
     expect(getActive()!.id).toBe(conn.id);
+
     expect(getSetting('active_preset_id')).toBe(preset.id);
   });
 });

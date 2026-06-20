@@ -1,4 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -37,8 +38,9 @@ describe('character import — Seraphina (real card)', () => {
     const result = await importCharacter(seraphinaPng, 'image/png');
 
     expect(result.name).toBe('Seraphina');
-    expect(result.id).toBeString();
-    expect(result.lorebook_id).toBeString();
+    expect(typeof result.id).toBe('string');
+    expect(typeof result.lorebook_id).toBe('string');
+
 
     // Character row exists, data column does NOT contain character_book.
     const full = getCharacterFull(result.id)!;
@@ -58,27 +60,24 @@ describe('character import — Seraphina (real card)', () => {
     expect(getBindingsForCharacter(result.id)).toContain(result.lorebook_id);
   });
 
-  test('avatar normalized to 512×768 PNG, no tEXt in stored blob', async () => {
+  test('avatar stored as-is as a PNG blob', async () => {
     const result = await importCharacter(seraphinaPng, 'image/png');
     const full = getCharacterFull(result.id)!;
 
-    expect(full.avatar_url).toBeString();
+    expect(typeof full.avatar_url).toBe('string');
     expect(full.avatar_url).toMatch(/^\/blobs\/avatars\/.+\.png$/);
 
-    // Original was 400×600. Stored blob should be 512×768 with no embedded
-    // card data — the DB is the source of truth.
-    const sharp = (await import('sharp')).default;
+    // No server-side image processing: the avatar is the uploaded bytes
+    // verbatim (this rewrite has no sharp/libvips dependency). The card data
+    // — including the embedded tEXt chunk — therefore still round-trips out of
+    // the stored blob, while the DB remains the source of truth.
     const blobPath = full.avatar_url!.replace('/blobs/avatars/', '');
     const { blobPath: resolvePath } = await import('../../src/files/blobs.ts');
-    const meta = await sharp(resolvePath('avatars', blobPath)).metadata();
-
-    expect(meta.width).toBe(512);
-    expect(meta.height).toBe(768);
-
-    // No tEXt in the stored blob.
     const blobBytes = readFileSync(resolvePath('avatars', blobPath));
-    expect(() => readCard(blobBytes)).toThrow();
+
+    expect(Buffer.from(blobBytes).equals(seraphinaPng)).toBe(true);
   });
+
 
   test('export PNG re-embeds character_book — full roundtrip', async () => {
     const imported = await importCharacter(seraphinaPng, 'image/png');

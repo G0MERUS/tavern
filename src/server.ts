@@ -1,11 +1,10 @@
-import { Elysia } from 'elysia';
-import { staticPlugin } from '@elysiajs/static';
-import { cors } from '@elysiajs/cors';
-import { swagger } from '@elysiajs/swagger';
-import { bearer } from '@elysiajs/bearer';
+import express, { type Express } from 'express';
+import cors from 'cors';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Server } from 'node:http';
 
+import { Elysia, mountElysia, type Ctx } from './_compat/elysia.ts';
 import { getConfig, requiresAuth } from './config.ts';
 import { blobDir } from './files/blobs.ts';
 import { AppError } from './types.ts';
@@ -21,34 +20,59 @@ import { chatRoutes } from './routes/chats.ts';
 import { messageRoutes } from './routes/messages.ts';
 import { lorebookRoutes } from './routes/lorebooks.ts';
 import { generateRoutes } from './routes/generate.ts';
-
 import { fileRoutes } from './routes/files.ts';
 
-/**
- * Assemble the Elysia server. Built as a single fluent chain — Elysia's
- * structural typing doesn't tolerate conditional `app = app.use(...)`
- * reassignment without the types diverging.
- */
-export function buildServer() {
+// Server assembly. The route files are written against a small Elysia-shaped
+// shim (src/_compat/elysia.ts); here we collect them all under one tree and
+// mount that onto an Express app, then bolt on the cross-cutting concerns
+// (CORS, bearer auth, static blobs, SPA fallback) that Elysia plugins used to
+// provide.
+
+export interface ServerHandle {
+  listen(
+    opts: { port: number; hostname: string },
+    cb: (info: { hostname: string; port: number }) => void,
+  ): ServerHandle;
+  stop(): void;
+}
+
+const IMMUTABLE = { maxAge: '1y', immutable: true } as const;
+
+export function buildServer(): ServerHandle {
   const config = getConfig();
   const authRequired = requiresAuth();
   const distDir = join(process.cwd(), 'dist');
   const hasFrontend = existsSync(distDir);
 
-  // Bearer-gated when listening publicly.
-  const api = new Elysia()
-    .use(bearer())
-    .onBeforeHandle(({ bearer: token, status, path }) => {
-      if (!authRequired) return;
-      if (!path.startsWith('/api')) return;
-      if (token !== config.apiToken) {
-        return status(401, {
-          error: { code: 'UNAUTHORIZED', message: 'Invalid bearer token' },
-        });
-      }
-    })
+  const app: Express = express();
+
+  // CORS only matters when publicly reachable. Mirrors the old conditional.
+  app.use(cors({ origin: authRequired ? true : false }));
+
+  // Body parsing. Multipart routes use multer (in the shim); these cover the
+  // JSON/urlencoded bodies. `limit` is generous for big lorebook imports.
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Bearer auth gate — applied as a global beforeHandle inside mountElysia so
+  // it only guards routed (API) handlers, not static assets.
+  const authGate = ({ bearer, status }: Ctx) => {
+    if (!authRequired) return;
+    if (bearer !== config.apiToken) {
+      return status(401, {
+        error: { code: 'UNAUTHORIZED', message: 'Invalid bearer token' },
+      });
+    }
+  };
+
+  // /health and /api/catalog were public in the original (no bearer); keep
+  // them on a tree without the auth gate.
+  const publicTree = new Elysia()
+    .use(healthRoutes)
+    .use(catalogRoute);
+
+  const apiTree = new Elysia()
     .use(settingsRoutes)
-    .use(catalogRoute)
     .use(connectionRoutes)
     .use(presetRoutes)
     .use(themeRoutes)
@@ -57,117 +81,71 @@ export function buildServer() {
     .use(chatRoutes)
     .use(messageRoutes)
     .use(lorebookRoutes)
-
     .use(generateRoutes)
-    .use(fileRoutes);
+    .use(fileRoutes)
+    .onError(errorHandler);
+
+  mountElysia(app, publicTree);
+  mountElysia(app, apiTree, [authGate]);
 
   // Blob filenames are nanoids, so content is effectively immutable.
-  const blobs = new Elysia()
-    .use(
-      staticPlugin({
-        assets: blobDir('avatars'),
-        prefix: '/blobs/avatars',
-        alwaysStatic: false,
-        headers: { 'Cache-Control': 'public, max-age=31536000, immutable' },
-      }),
-    )
-    .use(
-      staticPlugin({
-        assets: blobDir('backgrounds'),
-        prefix: '/blobs/backgrounds',
-        alwaysStatic: false,
-        headers: { 'Cache-Control': 'public, max-age=31536000, immutable' },
-      }),
-    )
-    .use(
-      staticPlugin({
-        assets: blobDir('attachments'),
-        prefix: '/blobs/attachments',
-        alwaysStatic: false,
-        headers: { 'Cache-Control': 'public, max-age=31536000, immutable' },
-      }),
-    );
+  app.use('/blobs/avatars', express.static(blobDir('avatars'), IMMUTABLE));
+  app.use('/blobs/backgrounds', express.static(blobDir('backgrounds'), IMMUTABLE));
+  app.use('/blobs/attachments', express.static(blobDir('attachments'), IMMUTABLE));
 
-  // Two Elysia gotchas force the unusual shape here:
-  //   1. Don't let @elysiajs/static touch index.html. Bun 1.x's HTML loader
-  //      treats <script src=...> as a module graph (built for `bun build`,
-  //      not for serving a pre-built Vite bundle); the plugin's indexHTML
-  //      mode trips it. Mount /assets only — no .html files inside.
-  //   2. Don't use .get('/*') as the SPA fallback. Elysia merges all routes
-  //      into one radix tree regardless of .use() order, so a /* wildcard
-  //      shadows /api/health. Serve index.html from the NOT_FOUND error
-  //      path instead — only fires when nothing else matched.
-  const indexHtml = hasFrontend ? Bun.file(join(distDir, 'index.html')) : null;
-  const frontend = hasFrontend
-    ? new Elysia().use(
-        staticPlugin({
-          assets: join(distDir, 'assets'),
-          prefix: '/assets',
-          alwaysStatic: false,
-          headers: { 'Cache-Control': 'public, max-age=31536000, immutable' },
-        }),
-      )
-    : new Elysia().get('/', () => ({
-        message: 'Tavern API running. Frontend not built — see /docs for API.',
-      }));
+  // Frontend: serve built assets immutably; fall back to index.html for any
+  // non-API/non-blob GET so the Vite SPA router handles client routes.
+  if (hasFrontend) {
+    app.use('/assets', express.static(join(distDir, 'assets'), IMMUTABLE));
+    const indexHtml = join(distDir, 'index.html');
+    app.get('*', (req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path.startsWith('/blobs/')) {
+        return next();
+      }
+      res.set('Cache-Control', 'no-cache').sendFile(indexHtml);
+    });
+  } else {
+    app.get('/', (_req, res) => {
+      res.json({ message: 'Tavern API running. Frontend not built.' });
+    });
+  }
 
-  return new Elysia()
-    // AppError carries a stable code + status. Validation errors get a useful
-    // field path. Everything else is a real bug — log + 500.
-    .onError(({ error, code, set, request, path }) => {
-      if (error instanceof AppError) {
-        set.status = error.status;
-        return {
-          error: { code: error.code, message: error.message, ...(error.details as object) },
-        };
-      }
-      if (code === 'VALIDATION') {
-        set.status = 400;
-        return { error: { code: 'VALIDATION', message: String(error) } };
-      }
-      if (code === 'NOT_FOUND') {
-        // SPA fallback. /api and /blobs misses are real 404s; anything else
-        // is a frontend route for the Vite router to handle.
-        if (
-          indexHtml &&
-          request.method === 'GET' &&
-          !path.startsWith('/api/') &&
-          !path.startsWith('/blobs/')
-        ) {
-          set.status = 200;
-          return new Response(indexHtml, {
-            headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' },
-          });
-        }
-        set.status = 404;
-        return { error: { code: 'NOT_FOUND', message: 'Route not found' } };
-      }
-      console.error('✗', error);
-      set.status = 500;
-      return { error: { code: 'INTERNAL', message: 'Internal server error' } };
-    })
-    .use(healthRoutes)
-    // CORS only matters when we're publicly reachable, but mounting it
-    // conditionally breaks the chain typing, so always mount.
-    .use(cors({ origin: authRequired ? true : false }))
-    .use(
-      swagger({
-        path: '/docs',
-        documentation: {
-          info: { title: 'Tavern API', version: '0.1.0' },
-          tags: [
-            { name: 'characters' }, { name: 'chats' }, { name: 'messages' },
-            { name: 'lorebooks' }, { name: 'personas' },
-            { name: 'connections' }, { name: 'presets' }, { name: 'settings' },
-            { name: 'generation' }, { name: 'files' },
-          ],
-        },
+  // Final 404 for anything unmatched (real API/blob misses).
+  app.use((_req, res) => {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
+  });
 
-      }),
-    )
-    .use(api)
-    .use(blobs)
-    .use(frontend);
+  // Wrap node's http.Server in the listen/stop handle index.ts expects.
+  let server: Server | undefined;
+  const handle: ServerHandle = {
+    listen({ port, hostname }, cb) {
+      server = app.listen(port, hostname, () => cb({ hostname, port }));
+      return handle;
+    },
+    stop() {
+      server?.close();
+    },
+  };
+  return handle;
 }
 
-export type App = ReturnType<typeof buildServer>;
+// AppError carries a stable code + status. Everything else is a real bug.
+const errorHandler = ({
+  error,
+  set,
+}: {
+  error: unknown;
+  set: { status: number; headers: Record<string, string> };
+}) => {
+  if (error instanceof AppError) {
+    set.status = error.status;
+    return {
+      error: { code: error.code, message: error.message, ...(error.details as object) },
+    };
+  }
+  console.error('✗', error);
+  set.status = 500;
+  return { error: { code: 'INTERNAL', message: 'Internal server error' } };
+};
+
+export type App = ServerHandle;

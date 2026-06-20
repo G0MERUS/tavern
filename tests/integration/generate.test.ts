@@ -1,9 +1,10 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Server } from 'bun';
 
+import { serve, type MockServer } from '../mock-server.ts';
 import { setupDb, teardownDb, FIXTURES } from '../setup.ts';
+
 import { createConnection, activateConnection } from '../../src/core/connections.ts';
 import { createPreset } from '../../src/core/presets.ts';
 import { setSetting } from '../../src/core/settings.ts';
@@ -15,15 +16,14 @@ import { generate, generateStream } from '../../src/llm/generate.ts';
 
 const lucidLoom = JSON.parse(readFileSync(join(FIXTURES, 'lucid-loom.json'), 'utf8'));
 
-let mockServer: Server;
+let mockServer: MockServer;
 let captured: { body?: any; headers?: Record<string, string> } = {};
 
 function startMock(): number {
   captured = {};
-  mockServer = Bun.serve({
-    port: 0,
-    async fetch(req) {
+  mockServer = serve(async (req) => {
       const url = new URL(req.url);
+
 
       if (url.pathname === '/v1/models') {
         return Response.json({ data: [{ id: 'mock-model' }, { id: 'mock-model-2' }] });
@@ -62,10 +62,10 @@ function startMock(): number {
       }
 
       return new Response('not found', { status: 404 });
-    },
   });
   return mockServer.port;
 }
+
 
 beforeEach(setupDb);
 afterEach(() => {

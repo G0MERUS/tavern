@@ -1,4 +1,5 @@
-import { Elysia, t } from 'elysia';
+import { Elysia, t } from '../_compat/elysia.ts';
+
 import { getAllSettings, patchSettings } from '../core/settings.ts';
 
 export const settingsRoutes = new Elysia({ prefix: '/api/settings', tags: ['settings'] })

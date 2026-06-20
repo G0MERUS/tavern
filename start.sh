@@ -19,4 +19,8 @@ if [ ! -d "node_modules" ] || [ ! -d "dist" ]; then
 fi
 
 echo "Starting Tavern… open http://127.0.0.1:8000 in your browser."
-exec bun run src/index.ts "$@"
+
+# Run on stock Node. tsx strips the TypeScript types on the fly (no build
+# step), and --experimental-sqlite enables Node's built-in node:sqlite (still
+# behind a flag through Node 22/23; harmless on 24+ where it's stable).
+exec node --experimental-sqlite --import tsx src/index.ts "$@"

@@ -1,9 +1,12 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
+
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
 import extract from 'png-chunks-extract';
 import * as PNGtext from 'png-chunk-text';
+
+import { makePng, pngMeta } from '../png-util.ts';
+
 
 import { readCard, NoCardDataError } from '../../src/card/parse.ts';
 import { writeCard } from '../../src/card/write.ts';
@@ -20,31 +23,29 @@ const seraphina = readFileSync(join(FIXTURES, 'seraphina.png'));
 describe('card/parse', () => {
   test('reads Seraphina (real-world card with both chara + ccv3)', () => {
     const raw = readCard(seraphina);
-    expect(raw).toBeObject();
+    expect(raw).toBeTypeOf('object');
     // ccv3 wins over chara.
     expect((raw as any).spec).toBe('chara_card_v3');
     expect((raw as any).data.name).toBe('Seraphina');
-    expect((raw as any).data.character_book).toBeObject();
+    expect((raw as any).data.character_book).toBeTypeOf('object');
+
     expect((raw as any).data.character_book.entries).toHaveLength(4);
   });
 
-  test('throws NoCardDataError on PNG without tEXt', async () => {
-    // sharp emits a clean PNG — no tEXt chunks.
-    const blank = await sharp({
-      create: { width: 8, height: 8, channels: 3, background: '#000' },
-    }).png().toBuffer();
+  test('throws NoCardDataError on PNG without tEXt', () => {
+    // A clean PNG — no tEXt chunks.
+    const blank = makePng(8, 8);
 
     expect(() => readCard(blank)).toThrow(NoCardDataError);
   });
 
-  test('throws NoCardDataError when tEXt exists but no chara/ccv3 keyword', async () => {
-    const blank = await sharp({
-      create: { width: 8, height: 8, channels: 3, background: '#000' },
-    }).png().toBuffer();
+  test('throws NoCardDataError when tEXt exists but no chara/ccv3 keyword', () => {
+    const blank = makePng(8, 8);
 
     // Inject an unrelated tEXt chunk — readCard should ignore it.
     const chunks = extract(blank);
-    chunks.splice(-1, 0, PNGtext.encode('Software', 'sharp'));
+    chunks.splice(-1, 0, PNGtext.encode('Software', 'test'));
+
     const tagged = encodeChunks(chunks);
 
     expect(() => readCard(tagged)).toThrow(NoCardDataError);
@@ -129,12 +130,11 @@ describe('card/normalize', () => {
 });
 
 describe('card/write — full roundtrip', () => {
-  test('write → read recovers identical data', async () => {
-    const blank = await sharp({
-      create: { width: 16, height: 16, channels: 3, background: '#abc' },
-    }).png().toBuffer();
+  test('write → read recovers identical data', () => {
+    const blank = makePng(16, 16, [0xaa, 0xbb, 0xcc]);
 
     const card: TavernCardV2 = emptyV2({
+
       name: 'Roundtrip',
       description: 'Test character with "quotes" and unicode: 日本語 émoji 🎭',
       tags: ['test', 'unicode'],
@@ -147,12 +147,11 @@ describe('card/write — full roundtrip', () => {
     expect((recovered as any).data).toEqual(card.data);
   });
 
-  test('writes both chara AND ccv3 chunks', async () => {
-    const blank = await sharp({
-      create: { width: 8, height: 8, channels: 3, background: '#000' },
-    }).png().toBuffer();
+  test('writes both chara AND ccv3 chunks', () => {
+    const blank = makePng(8, 8);
 
     const out = writeCard(blank, emptyV2({ name: 'Dual' }));
+
     const chunks = extract(out);
     const keywords = chunks
       .filter((c) => c.name === 'tEXt')
@@ -162,12 +161,11 @@ describe('card/write — full roundtrip', () => {
     expect(keywords).toContain('ccv3');
   });
 
-  test('strips existing chara/ccv3, leaves unrelated tEXt alone', async () => {
-    const blank = await sharp({
-      create: { width: 8, height: 8, channels: 3, background: '#000' },
-    }).png().toBuffer();
+  test('strips existing chara/ccv3, leaves unrelated tEXt alone', () => {
+    const blank = makePng(8, 8);
 
     const chunks = extract(blank);
+
     chunks.splice(-1, 0, PNGtext.encode('Author', 'Somebody'));
     const tagged = encodeChunks(chunks);
 
@@ -186,30 +184,28 @@ describe('card/write — full roundtrip', () => {
     expect((readCard(twice) as any).data.name).toBe('V2');
   });
 
-  test('output is a valid PNG (sharp can decode it)', async () => {
-    const blank = await sharp({
-      create: { width: 32, height: 48, channels: 3, background: '#f0f' },
-    }).png().toBuffer();
+  test('output is a valid PNG (IHDR survives the tEXt embed)', () => {
+    const blank = makePng(32, 48, [0xff, 0x00, 0xff]);
 
     const out = writeCard(blank, emptyV2({ name: 'Valid' }));
-    const meta = await sharp(out).metadata();
+    const meta = pngMeta(out);
 
-    // If our CRC-32 or chunk encoding were wrong, sharp would refuse this.
+    // If our CRC-32 or chunk encoding corrupted the structure, the IHDR
+    // dimensions wouldn't read back cleanly past the inserted tEXt chunks.
     expect(meta.format).toBe('png');
     expect(meta.width).toBe(32);
     expect(meta.height).toBe(48);
   });
 
-  test('Seraphina full roundtrip: read → normalize → write → read', async () => {
+  test('Seraphina full roundtrip: read → normalize → write → read', () => {
     const raw = readCard(seraphina);
     const v2 = toV2(raw);
 
     // Re-embed into a fresh image (simulating: blob from disk + data from DB)
-    const blank = await sharp({
-      create: { width: 512, height: 768, channels: 3, background: '#000' },
-    }).png().toBuffer();
+    const blank = makePng(512, 768);
 
     const reexported = writeCard(blank, v2);
+
     const recovered = toV2(readCard(reexported));
 
     expect(recovered.data.name).toBe('Seraphina');

@@ -1,8 +1,10 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import type { Server } from 'bun';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 
+import { serve, type MockServer } from '../mock-server.ts';
 import { setupDb, teardownDb } from '../setup.ts';
-import { createConnection, activateConnection, createFromCatalog, getConnection } from '../../src/core/connections.ts';
+
+import { createConnection, activateConnection, createFromCatalog, getConnection, updateConnection } from '../../src/core/connections.ts';
+
 import { generate, generateStream, testConnection } from '../../src/llm/generate.ts';
 import { getCatalog, getProvider, findModel } from '../../src/llm/catalog.ts';
 
@@ -11,15 +13,14 @@ import { getCatalog, getProvider, findModel } from '../../src/llm/catalog.ts';
 // then streams back native-shaped chunks so we can assert the parser
 // re-emits OAI shape.
 
-let mockServer: Server;
+let mockServer: MockServer;
 let captured: { body?: any; headers?: Record<string, string>; url?: string } = {};
 
 function startMock(): number {
   captured = {};
-  mockServer = Bun.serve({
-    port: 0,
-    async fetch(req) {
+  mockServer = serve(async (req) => {
       const url = new URL(req.url);
+
       captured.url = url.pathname + url.search;
       captured.headers = Object.fromEntries(req.headers);
 
@@ -84,10 +85,10 @@ function startMock(): number {
       }
 
       return new Response('not found', { status: 404 });
-    },
   });
   return mockServer.port;
 }
+
 
 beforeEach(setupDb);
 afterEach(() => {
@@ -614,8 +615,8 @@ describe('migration 002', () => {
   });
 
   test('updateConnection patches kind', () => {
-    const { updateConnection } = require('../../src/core/connections.ts');
     const conn = createConnection({
+
       label: 'Test',
       base_url: 'http://x/v1',
       model: 'm',

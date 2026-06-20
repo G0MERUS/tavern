@@ -26,4 +26,5 @@ export function teardownDb(): void {
   delete process.env['TAVERN_DATA_DIR'];
 }
 
-export const FIXTURES = join(import.meta.dir, 'fixtures');
+export const FIXTURES = join(import.meta.dirname, 'fixtures');
+

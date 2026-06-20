@@ -12,19 +12,24 @@ A from-scratch rewrite of the SillyTavern backend. **Single-user, local-first** 
 
 ## Run
 
+Tavern runs on stock **Node.js (≥ 22.5)** — no Bun, and no native modules to
+compile. SQLite comes from Node's built-in `node:sqlite`; TypeScript runs
+directly via [`tsx`](https://github.com/privatenumber/tsx) (no build step).
+
 ```sh
-bun install
-bun start                      # http://127.0.0.1:8000
-bun start --port 3000 --host 0.0.0.0   # public — auto-generates a bearer token
+npm install
+npm start                      # http://127.0.0.1:8000
+npm start -- --port 3000 --host 0.0.0.0   # public — auto-generates a bearer token
 ```
 
-API docs at `/docs` (Swagger). DB and blobs land in `./data/`.
+API docs at `/docs`. DB and blobs land in `./data/`.
 
 ## Run on a phone (Termux)
 
 Tavern runs on Android via [Termux](https://termux.dev) — no native image
-library is required (avatars are stored as-is), so there's no build-toolchain
-pain. Two scripts live in the repo: `req.sh` sets things up, `start.sh` runs it.
+library and no native SQLite addon are required (avatars are stored as-is;
+SQLite is built into Node), so there's no build-toolchain pain. Two scripts
+live in the repo: `req.sh` sets things up, `start.sh` runs it.
 
 First time:
 
@@ -32,15 +37,16 @@ First time:
 pkg install -y git
 git clone https://github.com/G0MERUS/tavern.git
 cd tavern
-./req.sh      # installs bun + deps, builds the web UI (run again after a git pull)
+./req.sh      # installs node + deps, builds the web UI (run again after a git pull)
 ./start.sh    # then open http://127.0.0.1:8000 in your browser
 ```
 
 > Got `permission denied` running `./req.sh`? The executable bit didn't survive
 > the clone — run `chmod +x req.sh start.sh` once, or just use `bash req.sh`.
 >
-> `req.sh` pulls `bun` from the TUR repo automatically. To install it by hand:
-> `pkg install tur-repo && pkg install bun`.
+> `req.sh` installs Node from the core Termux repo (`pkg install nodejs`). If
+> your Node is older than 22.5, run `pkg upgrade nodejs`.
+
 
 
 
@@ -64,8 +70,9 @@ auto-generated and printed on first run):
 ## Test
 
 ```sh
-bun test
+npm test
 ```
+
 
 Fixtures are real-world: `seraphina.png` (canonical PNG card with embedded character_book) and `lucid-loom.json` (445KB preset, 326 prompts, regex scripts).
 

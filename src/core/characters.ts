@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { nanoid } from 'nanoid';
 import { getDb, transaction } from '../db/index.ts';
+
 import { deleteBlob, blobUrl, thumbUrl, blobPath } from '../files/blobs.ts';
 import { normalizeAvatar } from '../files/avatar.ts';
 import { readCard, NoCardDataError } from '../card/parse.ts';
@@ -332,11 +334,11 @@ export async function exportCharacterPng(id: string): Promise<{ buffer: Uint8Arr
   }
 
   const path = blobPath('avatars', row.avatar_blob);
-  const file = Bun.file(path);
-  if (!(await file.exists())) {
+  if (!existsSync(path)) {
     throw new AppError('AVATAR_MISSING', 'Avatar file is missing from disk', 500);
   }
-  const imageBytes = new Uint8Array(await file.arrayBuffer());
+  const imageBytes = new Uint8Array(readFileSync(path));
+
 
   const out = writeCard(imageBytes, card);
   return { buffer: out, name: card.data.name };

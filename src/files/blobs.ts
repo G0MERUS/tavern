@@ -1,4 +1,5 @@
-import { mkdirSync, existsSync, unlinkSync, readdirSync } from 'node:fs';
+import { mkdirSync, existsSync, unlinkSync, readdirSync, writeFileSync } from 'node:fs';
+
 import { join, extname } from 'node:path';
 import { nanoid } from 'nanoid';
 import sanitize from 'sanitize-filename';
@@ -75,8 +76,10 @@ export async function saveBlob(
 
 
   const filename = nanoid(10) + e;
-  await Bun.write(join(blobsRoot, kind, filename), bytes);
+  const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  writeFileSync(join(blobsRoot, kind, filename), buf);
   return filename;
+
 }
 
 /** Delete a blob. Logs but doesn't throw if already gone — DB consistency wins. */

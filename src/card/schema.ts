@@ -1,4 +1,5 @@
-import { t } from 'elysia';
+import { t } from '../_compat/elysia.ts';
+
 
 // TypeBox schemas for request validation. Elysia validates these at runtime
 // and exports the inferred types via Eden Treaty for the frontend client.

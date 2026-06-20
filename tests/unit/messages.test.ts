@@ -1,4 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+
 import { setupDb, teardownDb } from '../setup.ts';
 import { createCharacter } from '../../src/core/characters.ts';
 import { createChat, getChat, branchChat } from '../../src/core/chats.ts';
@@ -308,10 +309,10 @@ describe('branchChat', () => {
     const branchMsgs = listMessages(branch.id);
     expect(branchMsgs.length).toBe(3);
     expect(branchMsgs.map((m) => m.content)).toEqual(['msg0', 'msg1', 'msg2']);
-    // New IDs.
-    expect(
-      new Set(branchMsgs.map((m) => m.id)).intersection(new Set(list.map((m) => m.id))).size,
-    ).toBe(0);
+    // New IDs — no overlap with the source chat's message IDs.
+    const sourceIds = new Set(list.map((m) => m.id));
+    expect(branchMsgs.some((m) => sourceIds.has(m.id))).toBe(false);
+
     // Same positions (sparse, preserved).
     expect(branchMsgs.map((m) => m.position)).toEqual(list.slice(0, 3).map((m) => m.position));
   });

@@ -8,8 +8,13 @@
 // works. Sanity check when revisiting:
 //   bun -e "console.log(((1>>>1)^0xedb88320).toString(16))"  // → edb88320
 
-// @ts-expect-error — crc-32 ships no types; API is trivial: buf(Uint8Array) → number
-import { buf as crc32 } from 'crc-32';
+// crc-32 is CommonJS and ships no types. Under Node's ESM loader a named
+// import (`import { buf }`) fails — CJS named exports aren't statically
+// analyzable — so import the default and pull `.buf` off it.
+// @ts-expect-error — no type declarations
+import CRC32 from 'crc-32';
+const crc32: (input: Uint8Array | number[] | string, seed?: number) => number = CRC32.buf;
+
 
 export interface Chunk {
   name: string;

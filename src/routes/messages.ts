@@ -1,4 +1,5 @@
-import { Elysia, t } from 'elysia';
+import { Elysia, t } from '../_compat/elysia.ts';
+
 import {
   createMessage,
   getMessage,

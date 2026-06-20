@@ -1,5 +1,6 @@
-import { Elysia, t } from 'elysia';
+import { Elysia, t, file } from '../_compat/elysia.ts';
 import { extname } from 'node:path';
+
 import { existsSync } from 'node:fs';
 import {
   saveBlob,
@@ -82,7 +83,8 @@ export const fileRoutes = new Elysia({ tags: ['files'] })
       // Source filenames never change — replacing an avatar yields a new
       // nanoid — so thumbnails are immutable.
       set.headers['cache-control'] = 'public, max-age=31536000, immutable';
-      return Bun.file(path);
+      return file(path);
+
     },
     {
       params: t.Object({

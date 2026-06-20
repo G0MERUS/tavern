@@ -1,4 +1,5 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
+
 import { parseChubUrl } from '../../src/chub/index.ts';
 
 // URL parsing only — fetch tests would hit the live API. The parser is the

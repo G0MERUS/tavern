@@ -7,7 +7,50 @@
 
 ---
 
+## 2026-06-21 — Миграция тестов с `bun:test` на Vitest (на Node)
+
+### Что
+Перевели весь backend-набор тестов (8 файлов, 127 тестов) с `bun:test` на
+Vitest, запускаемый под стоковым Node с `--experimental-sqlite`. Команда:
+`npm test` → `node --experimental-sqlite ./node_modules/vitest/vitest.mjs run`.
+
+### Зачем
+Уходим с Bun-зависимости в рантайме (см. предыдущие записи про Termux/TUR):
+приложение уже работает на `node:sqlite`, тесты тоже должны гонять на Node без
+отдельного тулчейна.
+
+### Как
+- Во всех файлах `import { ... } from 'bun:test'` → `from 'vitest'`.
+- `tests/sqlite-shim.ts`: `node:sqlite` ещё экспериментальный и отсутствует в
+  `module.builtinModules`, поэтому vite-node не считает его билтином и пытается
+  *трансформировать* (срезает префикс `node:` → ищет несуществующий пакет
+  `sqlite`). Шим тянет модуль через `createRequire`, минуя загрузчик. В
+  `vitest.config.ts` навесили `resolve.alias['node:sqlite']` на этот шим —
+  только для тестов; прод по-прежнему импортирует билтин напрямую.
+- `tests/mock-server.ts`: `Bun.serve({ port: 0 })` отдавал порт синхронно, а у
+  Node `server.listen(0)` биндится на следующем тике → `server.address()` ===
+  null при синхронном чтении. Теперь сами выбираем случайный высокий порт и
+  биндимся на него — контракт `const port = serve(...)` сохранён.
+- `tests/png-util.ts` (`makePng`/`pngMeta`): заменили `sharp` (которого нет в
+  зависимостях) на ручную генерацию минимального валидного PNG через наш
+  `encodeChunks`, и чтение размеров из IHDR.
+- Пара тестов делала `require('../../src/core/*.ts')` внутри теста — под
+  strip-only загрузчиком Node это падает («parameter property is not supported
+  in strip-only mode»). Переписали на обычные ESM-импорты сверху файла.
+- `messages.test.ts`: `Set.prototype.intersection` (ES2025) ругался по типам —
+  переписали проверку пересечения id через `.some()/.has()`.
+
+### Грабли/решения
+- `server.deps.external` / `resolveId`-плагин для `node:sqlite` **не помогли** —
+  vite-node всё равно пытался грузить модуль через свой загрузчик. Сработал
+  только alias на require-шим.
+- В Vitest 3 «висящие» `expect(...).rejects` без `await` станут ошибкой — пока
+  только предупреждение, но стоит дойти и проставить `await`.
+
+---
+
 ## 2026-06-20 — Фикс: `Unable to locate package bun` в Termux
+
 
 ### Симптом
 `./req.sh` падал на установке: `ERROR Unable to locate package bun`.
