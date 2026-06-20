@@ -1,0 +1,506 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * Token block. These exact var names are the theme-file compat surface.
+ * Theme JSONs in the wild reference these names indirectly. Don't rename.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  interpolate-size: allow-keywords;
+
+  /* ── Theme-mutable colors. Defaults = "Default Dark" ─────────────────── */
+  --SmartThemeBodyColor: rgb(220, 220, 210);
+  --SmartThemeEmColor: rgb(145, 145, 145);
+  --SmartThemeUnderlineColor: rgb(188, 231, 207);
+  --SmartThemeQuoteColor: rgb(225, 138, 36);  /* The orange. Don't lose it. */
+  --SmartThemeBlurTintColor: rgba(23, 23, 23, 1);
+  --SmartThemeChatTintColor: rgba(23, 23, 23, 1);
+  --SmartThemeUserMesBlurTintColor: rgba(0, 0, 0, 0.3);
+  --SmartThemeBotMesBlurTintColor: rgba(60, 60, 60, 0.3);
+  --SmartThemeShadowColor: rgba(0, 0, 0, 0.5);
+  --SmartThemeBorderColor: rgba(0, 0, 0, 0.5);
+
+  /* ── Theme-mutable scalars ───────────────────────────────────────────── */
+  --blurStrength: 10;
+  --shadowWidth: 2;
+  --fontScale: 1;
+  /* The cascade writes --sheldWidthDesktop (inline on :root). This rule
+     consumes it; the @media rule below overrides on mobile. Indirection so
+     the breakpoint can win — inline style on :root would beat any @media. */
+  --sheldWidthDesktop: 50vw;
+  --sheldWidth: var(--sheldWidthDesktop);
+  --panelRadius: 10px;       /* layout.corner_radius writes here */
+  --mesDensity: 1;           /* layout.message_density writes here */
+  --mainFontFamily: 'Noto Sans', sans-serif;  /* layout.font writes here */
+
+  /* ── Static greys ────────────────────────────────────────────────────── */
+  --grey10: rgb(25, 25, 25);
+  --grey30: rgb(75, 75, 75);
+  --grey50: rgb(125, 125, 125);
+  --grey5020a: rgba(125, 125, 125, 0.2);
+  --grey5050a: rgba(125, 125, 125, 0.5);
+  --grey70: rgb(175, 175, 175);
+  --grey7070a: rgba(175, 175, 175, 0.7);
+
+  --black30a: rgba(0, 0, 0, 0.3);
+  --black50a: rgba(0, 0, 0, 0.5);
+  --black70a: rgba(0, 0, 0, 0.7);
+  --black90a: rgba(0, 0, 0, 0.9);
+  --white20a: rgba(255, 255, 255, 0.2);
+  --white50a: rgba(255, 255, 255, 0.5);
+  --white70a: rgba(255, 255, 255, 0.7);
+  --white100: rgba(255, 255, 255, 1);
+
+  /* ── Status colors ───────────────────────────────────────────────────── */
+  --active: rgb(88, 182, 0);
+  --warning: rgba(255, 0, 0, 0.9);
+  --golden: rgb(248, 211, 0);
+  --crimson70a: rgba(100, 0, 0, 0.7);
+  --cobalt30a: rgba(100, 100, 255, 0.3);
+
+  /* ── Derived sizing. Set inputs above; these follow ──────────────────── */
+  --mainFontSize: calc(var(--fontScale) * 15px);
+  --SmartThemeBlurStrength: calc(var(--blurStrength) * 1px);
+
+  --topBarIconSize: calc(var(--mainFontSize) * 2);
+  --topBarBlockPadding: calc(var(--mainFontSize) / 3);
+  --topBarBlockSize: calc(var(--topBarIconSize) + var(--topBarBlockPadding));
+
+  --bottomFormBlockPadding: calc(var(--mainFontSize) / 2.5);
+  --bottomFormIconSize: calc(var(--mainFontSize) * 1.9);
+  --bottomFormBlockSize: calc(var(--bottomFormIconSize) + var(--bottomFormBlockPadding));
+
+  /* ── Avatars ─────────────────────────────────────────────────────────── */
+  --avatar-base-width: 50px;
+  --avatar-base-height: 50px;
+  --avatar-base-border-radius: 50%;  /* round by default; body class swaps */
+
+  /* ── Motion ──────────────────────────────────────────────────────────── */
+  --animation-duration: 125ms;
+  --animation-duration-2x: calc(var(--animation-duration) * 2);
+  --animation-duration-slow: calc(var(--animation-duration) * 3);
+
+  /* ── Reasoning ───────────────────────────────────────────────────────── */
+  --reasoning-saturation: 0.5;
+
+  /* ── Message body gutter ───────────────────────────────────────────
+     Swipe controls now sit on a strip *below* the prose, not overlaid at
+     right:0, so the gutter shrinks to a small breathing margin. */
+  --mes-right-spacing: 5px;
+
+  /* ── Drawer width ─────────────────────────────────────────────────────
+     Wider ceiling than the old hardcoded 400px now that drawers are
+     drag-resizable. settings.panelSizes[id] overrides this when set. */
+  --drawer-side-min: 280px;
+  --drawer-side-max: min(50vw, 700px);
+  --drawer-side-default: clamp(var(--drawer-side-min), 25vw, var(--drawer-side-max));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --animation-duration: 0ms; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Globals. The omnipresent text-shadow is the original sin — every glyph
+ * has a 2px black glow. It's why ST text reads okay over busy backgrounds.
+ * --shadowWidth: 0 kills it.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  text-shadow: 0 0 calc(var(--shadowWidth) * 1px) var(--SmartThemeShadowColor);
+}
+
+html {
+  -webkit-transform: translateZ(0);  /* chrome flicker fix on blurred divs */
+  -webkit-backface-visibility: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100dvh;
+  background-color: var(--SmartThemeBlurTintColor);
+  font-family: var(--mainFontFamily);
+  font-size: var(--mainFontSize);
+  color: var(--SmartThemeBodyColor);
+  overflow: hidden;
+  color-scheme: only light;
+}
+
+/* ── Body classes (toggle-dependent) ────────────────────────────────────────
+   ST's toggle-dependent.css is 580 lines for these — most of it is
+   selector-specificity wars with inline styles. We don't have inline styles.
+   ~30 lines does it. */
+
+/* no_blur is the negative-sense flag (default is blur-on, the class marks
+   the exception). When blur is off, panels need full-opacity tint to read. */
+body.no-blur * { backdrop-filter: unset !important; }
+body.no-blur .panel-chrome { background-color: var(--SmartThemeBlurTintColor); }
+
+body.no-shadows { --shadowWidth: 0; }
+body.reduced-motion { --animation-duration: 0ms; }
+
+body.compact-input #send-form {
+  --bottomFormBlockSize: calc(var(--mainFontSize) * 2);
+}
+
+/* avatar_style → body class → which radius var is read */
+body.avatar-square { --avatar-base-border-radius: 2px; }
+body.avatar-rounded { --avatar-base-border-radius: 10px; }
+body.avatar-rectangle {
+  --avatar-base-width: 60px;
+  --avatar-base-height: 90px;
+  --avatar-base-border-radius: 10px;
+}
+
+/* chat_display → body class. .mes is in Message.svelte. Symmetric margin:
+   the 5px on top lifts the first bubble off the top bar; margins between
+   adjacent bubbles collapse to 5px. */
+body.bubblechat .mes {
+  border-radius: 10px;
+  margin: 5px;
+  border: 1px solid var(--SmartThemeBorderColor);
+}
+body.bubblechat .mes[data-role=user] { background-color: var(--SmartThemeUserMesBlurTintColor); }
+body.bubblechat .mes:not([data-role=user]) { background-color: var(--SmartThemeBotMesBlurTintColor); }
+
+body.documentstyle .mes {
+  padding-block: calc(0.25rem * var(--mesDensity));
+  border: none;
+}
+body.documentstyle .mes .mesAvatarWrapper,
+body.documentstyle .mes .ch_name { display: none; }
+
+/* message_density. Composes with bubblechat/documentstyle (multiplier on top).
+   ST used 10px 10px 0 because swipe arrows lived outside the bubble; ours
+   sit inside .mes_block's own padding-bottom, so the outer .mes padding is
+   symmetric. Density scales the lot. */
+body .mes {
+  padding: calc(10px * var(--mesDensity));
+}
+
+/* Hidden message: replaces the old class:opacity-50. Theme CSS targets the
+   attribute. ST uses [is_system="true"] (the awful name) — we use the field
+   that means what it says. */
+.mes[data-hidden] { opacity: 0.6; }
+.mes[data-hidden] .avatar { filter: grayscale(50%); }
+
+/* ── Resize affordances ───────────────────────────────────────────────────
+   The injected grip strip (actions/resize.ts mode 1). Half its width hangs
+   outside the drawer (-3px) so the grab target straddles the border. */
+
+.resize-grip-x {
+  position: absolute;
+  inset-block: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;  /* above drawer content, below popups */
+  touch-action: none;
+  transition: background-color 100ms;
+}
+.resize-grip-x:hover,
+.resize-grip-x.dragging {
+  background-color: var(--SmartThemeQuoteColor);
+  opacity: 0.5;
+}
+
+/* Top-edge grip for the chat input. Anchored in the textarea's parent —
+   now the inner bordered box inside #send-form, not the form itself.
+   Absolute children of an overflow:auto element get clipped and scroll with
+   the content, hence the parent-hop in resize.ts. The grip spans the full
+   box width (no left/right inset); the form's p-2 is already on the
+   outside of the box, so the grip already aligns with the visible border. */
+.resize-grip-y {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 1;
+  touch-action: none;
+  transition: background-color 100ms;
+}
+.resize-grip-y:hover,
+.resize-grip-y.dragging {
+  background-color: var(--SmartThemeQuoteColor);
+  opacity: 0.5;
+}
+
+/* Native resize handle. Webkit-only, but it's the only handle that's
+   stylable at all and the default grey-on-grey is invisible on our dark
+   text-pole background. Two diagonal stripes via a single gradient. */
+textarea::-webkit-resizer {
+  background:
+    linear-gradient(-45deg,
+      transparent 0 30%,
+      var(--SmartThemeBorderColor) 30% 40%,
+      transparent 40% 60%,
+      var(--SmartThemeBorderColor) 60% 70%,
+      transparent 70%);
+}
+
+/* ── Scrollbars (lifted verbatim from original) ─────────────────────────── */
+
+::-webkit-scrollbar { width: 0.7rem; }
+::-webkit-scrollbar-track:hover { background-color: rgba(126, 126, 126, 0.2); }
+::-webkit-scrollbar-thumb {
+  background-color: var(--grey7070a);
+  box-shadow: inset 0 0 0 1px var(--black50a);
+  border-radius: 10px;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-thumb:active { cursor: grabbing; }
+
+* { scrollbar-color: var(--grey7070a) transparent; scrollbar-width: thin; }
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-down {
+  0%   { max-height: 0; opacity: 0; }
+  100% { max-height: 90vh; opacity: 1; }
+}
+
+@keyframes fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes ellipsis-pulse {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+/* ── Typography overrides for .prose (presetTypography) ─────────────────── */
+
+.prose {
+  --un-prose-body: var(--SmartThemeBodyColor);
+  --un-prose-bold: var(--SmartThemeBodyColor);
+  --un-prose-links: var(--SmartThemeQuoteColor);
+  --un-prose-code: var(--SmartThemeBodyColor);
+  --un-prose-pre-bg: var(--black50a);
+  --un-prose-th-borders: var(--SmartThemeBorderColor);
+  --un-prose-td-borders: var(--SmartThemeBorderColor);
+  max-width: none;
+}
+
+.prose em { color: var(--SmartThemeEmColor); }
+/* The soul of the app. Quotes go orange. */
+.prose q { color: var(--SmartThemeQuoteColor); quotes: none; }
+.prose u { color: var(--SmartThemeUnderlineColor); }
+.prose hr { border-color: var(--SmartThemeBorderColor); }
+.prose code { font-family: 'Noto Sans Mono', Consolas, monospace; }
+.prose p:first-child { margin-top: 0; }
+.prose p:last-child { margin-bottom: 0; }
+
+/* Reasoning text desaturates relative to body. "Thinking out loud." */
+.mes_reasoning .prose {
+  --un-prose-body: var(--SmartThemeEmColor);
+}
+.mes_reasoning .prose q {
+  color: hsl(from var(--SmartThemeQuoteColor) h calc(s * var(--reasoning-saturation)) l);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Message internals. ST's class names verbatim where it matters — user themes
+ * in the wild target .mes_text and .ch_name; the underscore is the
+ * compat-correct choice.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Avatar-column meta. Lifted from ST's `.mesIDDisplay, .mes_timer,
+   .tokenCounterDisplay` rule verbatim. */
+.mes-meta {
+  opacity: 0.7;
+  font-size: calc(var(--mainFontSize) * 0.9);
+  font-weight: 600;
+  text-align: center;
+}
+
+.timestamp {
+  font-size: calc(var(--mainFontSize) * 0.7);
+  font-weight: 400;
+}
+
+/* The right-gutter trick. Reasoning aligns with the body. */
+.mes_text {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: var(--mes-right-spacing);
+}
+.mes_reasoning_details { margin-right: var(--mes-right-spacing); }
+
+/* drop-shadow is what makes the icons readable on busy backgrounds. We
+   didn't have it before; the icons vanished on light themes. */
+.mes-btn {
+  cursor: pointer;
+  opacity: 0.3;
+  filter: drop-shadow(0px 0px 2px black);
+  transition: opacity 250ms ease-in-out;
+}
+.mes-btn:hover { opacity: 1; }
+.mes-btn:disabled { opacity: 0.1; cursor: not-allowed; }
+
+/* Edit strip rests slightly more visible — you're already in a mode. */
+.mes-edit-btn {
+  cursor: pointer;
+  opacity: 0.5;
+  filter: drop-shadow(0px 0px 2px black);
+  transition: opacity 250ms ease-in-out;
+}
+.mes-edit-btn:hover { opacity: 1; }
+.mes-edit-btn:disabled { opacity: 0.1; cursor: not-allowed; }
+
+/* ── Options menu (#options) ──────────────────────────────────────────────────────────────
+   panel-chrome supplies border/rounded/bg; we add the list styling. ID
+   kept ST-classic so user themes targeting `#options` keep working. */
+#options {
+  display: flex;
+  flex-direction: column;
+}
+.options-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms;
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  width: 100%;
+}
+.options-item:hover:not(:disabled) {
+  background-color: var(--SmartThemeBlurTintColor);
+}
+.options-item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+/* Fixed-width icon column keeps labels aligned regardless of glyph width. */
+.options-item > [class^="i-"] {
+  width: 1rem;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.options-sep {
+  height: 1px;
+  background-color: var(--SmartThemeBorderColor);
+  margin: 0.25rem 0;
+  opacity: 0.5;
+}
+
+/* ── Delete mode ──────────────────────────────────────────────────────────────────────────
+   The checkbox sits over any background — bordered + dark tint + accent
+   on check so it reads against both bubble tints and custom themes. */
+.mes-delete-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--SmartThemeQuoteColor);
+  background-color: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* Suspend message affordances bubble-wide while delete mode is active.
+   :has() replaces threading a prop through Message.svelte — one selector
+   covers hover actions, edit buttons, and swipe chevrons at once. */
+body:has(.delete-banner) .mes .mes_buttons,
+body:has(.delete-banner) .mes .mes_edit_buttons,
+body:has(.delete-banner) .mes .swipe_left,
+body:has(.delete-banner) .mes .swipeRightBlock {
+  visibility: hidden;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Swipe controls. Absolutely positioned against .mes (which is
+ * position:relative). Visibility is decided here — not in Svelte — so
+ * toggling swipe_count_all flips one body class instead of re-rendering N
+ * components. ST's exact rules, our class names.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Swipe controls anchor on .mes_block (the body column), not .mes. The 30px
+   padding is the strip's height (25px) plus a 5px gap below it so the
+   chevrons don't sit flush against the bubble border. */
+.mes[data-role="assistant"] .mes_block {
+  padding-bottom: 30px;
+}
+.swipeRightBlock {
+  position: absolute;
+  right: 0; bottom: 5px;
+  height: 25px;
+  display: flex; flex-direction: row; align-items: center;
+  gap: 12px;
+  /* Gaps between chevrons and counter are click-through; only the buttons
+     themselves catch clicks. */
+  pointer-events: none;
+}
+.swipeRightBlock > * { pointer-events: auto; }
+.swipe_left,
+.swipe_right {
+  width: 20px; height: 20px;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.swipes-counter {
+  font-size: 12px;
+  opacity: 0.3;
+  cursor: default;
+  /* fixed-ish width keeps the chevrons from shifting when 9/9 → 10/10 */
+  min-width: 32px;
+  text-align: center;
+}
+.swipes-counter:not(:disabled) { cursor: pointer; }
+.swipes-counter:not(:disabled):hover { opacity: 0.7; }
+
+/* Right chevron + counter glow at end-of-swipes (next click = generate, not
+   navigate). 0.3 → 0.7. ST's .last_swipe. The greeting message suppresses
+   this in Svelte (it loops, doesn't generate). */
+.swipeRightBlock.last-swipe :is(.swipe_right, .swipes-counter) {
+  opacity: 0.7;
+}
+
+/* Visibility cascade. Default: only .last_mes shows controls. */
+.mes:not(.last_mes) :is(.swipe_left, .swipe_right) {
+  visibility: hidden; opacity: 0;
+}
+.mes:not(.last_mes) .swipes-counter {
+  visibility: hidden; opacity: 0;
+}
+/* swipe_count_all: counters appear on non-last (chevrons stay hidden). */
+body.swipeAllMessages .mes .swipes-counter {
+  visibility: visible; opacity: 0.3;
+}
+/* User + system never show swipes regardless. data-role is set in
+   Message.svelte; SwipeControls also conditionally renders, but the CSS
+   guard means a future caller can't accidentally show them either. */
+.mes[data-role="user"] .swipeRightBlock,
+.mes[data-role="system"] .swipeRightBlock {
+  display: none;
+}
+
+/* ── Mobile breakpoint ───────────────────────────────────────────────────── */
+
+@media (max-width: 1000px) {
+  :root {
+    --sheldWidth: 100vw;
+    --topBarIconSize: calc(var(--mainFontSize) * 1.6);
+  }
+}
+
+@media (max-width: 450px) {
+  :root {
+    --avatar-base-width: 40px;
+    --avatar-base-height: 40px;
+  }
+}

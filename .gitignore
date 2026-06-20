@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Bun
+.bun/
+bun-error.log
+
+# Build output
+dist/
+build/
+.output/
+
+# Vite / Svelte
+.vite/
+.svelte-kit/
+*.tsbuildinfo
+vite.config.ts.timestamp-*
+
+# Runtime data — SQLite + user blobs
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+secrets.json
+
+# Cache
+.cache/
+.eslintcache
+.turbo/
+*.cache
+
+# Test / coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+*.local
+.tmp/
+tmp/

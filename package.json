@@ -1,0 +1,32 @@
+{
+  "name": "tavern",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "module": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "generate-catalog": "bun scripts/generate-catalog.ts"
+  },
+  "dependencies": {
+    "elysia": "^1.2.0",
+    "@elysiajs/static": "^1.2.0",
+    "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/swagger": "^1.2.0",
+    "@elysiajs/bearer": "^1.2.0",
+    "png-chunks-extract": "^1.0.0",
+    "png-chunk-text": "^1.0.0",
+    "gpt-tokenizer": "^2.8.0",
+    "nanoid": "^5.0.9",
+    "sanitize-filename": "^1.6.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/png-chunks-extract": "^1.0.2",
+    "@types/png-chunk-text": "^1.0.3",
+    "typescript": "^5.7.0"
+  }
+}
