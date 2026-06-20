@@ -1,5 +1,0 @@
-[test]
-# Backend tests only. The frontend (web/) has its own test runner.
-# Without this, `bun test` recurses into web/node_modules/devalue and
-# the still-WIP frontend test suite.
-root = "tests"
