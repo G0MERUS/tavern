@@ -7,7 +7,33 @@
 
 ---
 
+## 2026-06-20 — Фикс: `Unable to locate package bun` в Termux
+
+### Симптом
+`./req.sh` падал на установке: `ERROR Unable to locate package bun`.
+
+### Причина
+`bun` нет в основных репозиториях Termux. Он живёт в **TUR** (Termux User
+Repository), который по умолчанию не подключён.
+
+### Решение
+В `req.sh` перед установкой bun теперь добавляется TUR:
+```sh
+pkg install -y tur-repo
+pkg install -y bun
+```
+Делается только если `bun` ещё не найден. Подсказку при ручной установке тоже
+обновили: `pkg install tur-repo && pkg install bun`.
+
+### Запасной вариант
+Если в TUR по какой-то причине нет сборки под конкретную архитектуру/версию —
+ставить bun официальным скриптом `curl -fsSL https://bun.sh/install | bash`
+(но в Termux предпочтительнее пакет из TUR).
+
+---
+
 ## 2026-06-20 — Фикс: `./req.sh: permission denied` в Termux
+
 
 ### Симптом
 После клона на телефоне `./req.sh` падал с `permission denied`.

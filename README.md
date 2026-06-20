@@ -38,6 +38,10 @@ cd tavern
 
 > Got `permission denied` running `./req.sh`? The executable bit didn't survive
 > the clone — run `chmod +x req.sh start.sh` once, or just use `bash req.sh`.
+>
+> `req.sh` pulls `bun` from the TUR repo automatically. To install it by hand:
+> `pkg install tur-repo && pkg install bun`.
+
 
 
 After that, every time you just want to run it:

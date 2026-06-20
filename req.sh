@@ -16,17 +16,27 @@ say() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 # `command -v pkg` is true on Termux. On a normal PC we skip this and assume
 # you already have bun + git installed.
 if command -v pkg >/dev/null 2>&1; then
-  say "Installing system packages (git, bun, unzip)"
+  say "Installing system packages (git, unzip)"
   pkg update -y
-  pkg install -y git bun unzip
+  pkg install -y git unzip
+
+  # `bun` isn't in the core Termux repos — it lives in TUR (Termux User
+  # Repository). Add it, then install bun from there.
+  if ! command -v bun >/dev/null 2>&1; then
+    say "Enabling TUR repo and installing bun"
+    pkg install -y tur-repo
+    pkg install -y bun
+  fi
 fi
+
 
 # Make sure bun is actually available before going further.
 if ! command -v bun >/dev/null 2>&1; then
   echo "!! 'bun' was not found. Install it first:"
-  echo "   Termux:  pkg install bun"
+  echo "   Termux:  pkg install tur-repo && pkg install bun"
   echo "   Other:   https://bun.sh"
   exit 1
+
 fi
 
 # --- 2. Backend dependencies ----------------------------------------------
