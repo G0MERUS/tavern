@@ -37,6 +37,9 @@ yarn-error.log*
 .env.*
 !.env.example
 secrets.json
+# Runtime config — may hold an auto-generated API token (see src/config.ts)
+config.json
+
 
 # Cache
 .cache/
