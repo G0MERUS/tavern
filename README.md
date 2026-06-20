@@ -36,6 +36,10 @@ cd tavern
 ./start.sh    # then open http://127.0.0.1:8000 in your browser
 ```
 
+> Got `permission denied` running `./req.sh`? The executable bit didn't survive
+> the clone — run `chmod +x req.sh start.sh` once, or just use `bash req.sh`.
+
+
 After that, every time you just want to run it:
 
 ```sh
