@@ -39,6 +39,14 @@
     if (file) await characters.import(file);
   }
 
+  // Create a brand-new character with no avatar and jump straight into editing
+  // it. An avatar is optional — adding one is a choice, not a requirement.
+  async function onCreate(): Promise<void> {
+    await characters.createBlank();
+    editing = true;
+  }
+
+
   // ── Edit mode ─────────────────────────────────────────────────────────────
   function patch<K extends keyof CardData>(key: K, value: CardData[K]): void {
     const c = characters.active;
@@ -70,10 +78,13 @@
 >
   {#snippet actions()}
     {#if !editing}
-      <IconButton icon="plus" size="sm" title="Import"
+      <IconButton icon="user-plus" size="sm" title="New character"
+        onclick={onCreate} />
+      <IconButton icon="file-import" size="sm" title="Import from file"
         onclick={() => fileInput?.click()} />
       <input bind:this={fileInput} type="file" accept=".png,.json" hidden onchange={onImport} />
     {:else}
+
       <IconButton icon="chevron-left" size="sm" title="Back"
         onclick={() => (editing = false)} />
     {/if}
@@ -157,8 +168,11 @@
 
         {#if characters.filtered.length === 0}
           <div class="w-full p-4 text-center text-sm opacity-50">
-            No characters. Drop a .png card or click + to import.
+            No characters yet. Tap the <span class="i-fa6-solid:user-plus"></span>
+            to create one, or <span class="i-fa6-solid:file-import"></span> to
+            import a .png/.json card.
           </div>
+
         {/if}
       </div>
     </div>

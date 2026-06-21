@@ -57,6 +57,20 @@ export const characters = {
   },
 
   /**
+   * Create a blank character with no avatar (an avatar is optional — you add
+   * one later via the edit panel if you want). Selects it so the caller can
+   * drop straight into edit mode.
+   */
+  async createBlank(): Promise<Character> {
+    const c = await api.characters.create({ name: 'New Character' });
+    await characters.load();
+    active = await api.characters.get(c.id);
+    toasts.success('Created character');
+    return active;
+  },
+
+
+  /**
    * Debounced card patch. Reads `active` at FIRE time, not queue time — if
    * the user switches characters mid-debounce, the stale write is dropped.
    * Lifted from CharacterPanel; CharAdvanced and Greetings also call it.

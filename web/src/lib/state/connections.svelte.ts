@@ -82,7 +82,18 @@ export const connections = {
     }
   },
 
+  /**
+   * Stateless model probe from raw form fields (no saved connection needed).
+   * Returns the result so the form can populate its model combobox before Save.
+   */
+  async probe(
+    input: Parameters<typeof api.connections.probe>[0],
+  ): Promise<api.TestResult> {
+    return api.connections.probe(input);
+  },
+
   modelsFor(id: string): string[] {
     return modelCache[id] ?? [];
   },
 };
+

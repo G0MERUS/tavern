@@ -9,7 +9,8 @@ import {
   deleteConnection,
   activateConnection,
 } from '../core/connections.ts';
-import { testConnection } from '../llm/generate.ts';
+import { testConnection, testConnectionConfig } from '../llm/generate.ts';
+
 import { getCatalog } from '../llm/catalog.ts';
 import { NotFound } from '../types.ts';
 import type { ConnectionRow } from '../types.ts';
@@ -76,4 +77,27 @@ export const connectionRoutes = new Elysia({ prefix: '/api/connections', tags: [
 
   .post('/:id/activate', ({ params: { id } }) => present(activateConnection(id)))
 
-  .post('/:id/test', ({ params: { id } }) => testConnection(id));
+  .post('/:id/test', ({ params: { id } }) => testConnection(id))
+
+  // Stateless model probe: fetch the provider's model list from raw form
+  // fields, before the connection is saved. Means we never need a hardcoded
+  // model list — any OpenAI-compatible endpoint just exposes GET /models.
+  .post(
+    '/probe',
+    ({ body }) =>
+      testConnectionConfig({
+        kind: body.kind ?? 'openai',
+        base_url: body.base_url,
+        api_key: body.api_key,
+        extra_headers: body.extra_headers,
+      }),
+    {
+      body: t.Object({
+        kind: t.Optional(Kind),
+        base_url: t.String({ minLength: 1 }),
+        api_key: t.Optional(t.String()),
+        extra_headers: t.Optional(t.Record(t.String(), t.String())),
+      }),
+    },
+  );
+

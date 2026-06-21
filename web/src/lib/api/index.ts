@@ -158,7 +158,15 @@ export const connections = {
   delete: (id: string) => http.delete<{}>(`/api/connections/${id}`),
   activate: (id: string) => http.post<T.Connection>(`/api/connections/${id}/activate`),
   test: (id: string) => http.post<TestResult>(`/api/connections/${id}/test`),
+  /** Fetch a provider's model list from raw fields, before saving the connection. */
+  probe: (input: {
+    kind?: T.ConnectionKind;
+    base_url: string;
+    api_key?: string;
+    extra_headers?: Record<string, string>;
+  }) => http.post<TestResult>('/api/connections/probe', input),
 };
+
 
 // ── Provider catalog ─────────────────────────────────────────────────────────
 export const catalog = {

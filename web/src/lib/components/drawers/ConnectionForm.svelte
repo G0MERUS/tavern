@@ -195,27 +195,42 @@
     }
   }
 
-  // ── Test ─────────────────────────────────────────────────────────────────
-  // Backend currently only supports /:id/test. For create mode, save first.
-  // For edit mode with dirty fields, the test runs against the *saved* row,
-  // which is wrong but matches current backend capability. The spec flagged
-  // a body-accepting test variant; until that lands, edit-mode users save
-  // then test.
+  // ── Fetch models ─────────────────────────────────────────────────────────
+  // Stateless probe against /api/connections/probe — works in BOTH create and
+  // edit mode, using whatever is currently typed in the form (no save needed).
+  // Any OpenAI-compatible endpoint exposes GET /models, so this replaces the
+  // need for any hardcoded per-provider model list.
   async function test() {
-    if (!editing) {
-      toasts.info('Save first, then Test');
+    if (!draft.base_url.trim()) {
+      toasts.info('Enter a Base URL first');
       return;
     }
     testing = true;
     try {
-      await connections.test(editing.id);
-      // test() already cached models internally; mirror locally for the combobox.
-      const cached = connections.modelsFor(editing.id);
-      testResult = { ok: cached.length > 0, models: cached };
+      const headers = Object.fromEntries(
+        headerRows.filter((r) => r.k.trim()).map((r) => [r.k.trim(), r.v]),
+      );
+      const result = await connections.probe({
+        kind: draft.kind,
+        base_url: draft.base_url.trim(),
+        api_key: draft.api_key || undefined,
+        extra_headers: Object.keys(headers).length > 0 ? headers : undefined,
+      });
+      testResult = result;
+      if (result.ok) {
+        toasts.success(`Found ${result.models?.length ?? 0} models`);
+      } else {
+        toasts.error(result.error ?? 'Could not fetch models');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Probe failed';
+      testResult = { ok: false, error: msg };
+      toasts.error(msg);
     } finally {
       testing = false;
     }
   }
+
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const canSave = $derived(
@@ -383,10 +398,11 @@
     <Button variant="primary" onclick={save} disabled={!canSave}>
       Save
     </Button>
-    <Button onclick={test} disabled={testing || !editing}>
+    <Button onclick={test} disabled={testing || !draft.base_url.trim()}>
       <span class="i-fa6-solid:vial mr-1"></span>
-      {testing ? 'Testing…' : 'Test'}
+      {testing ? 'Fetching…' : 'Fetch models'}
     </Button>
+
     <span class="flex-1"></span>
     <Button variant="ghost" onclick={oncancel}>Cancel</Button>
   </div>

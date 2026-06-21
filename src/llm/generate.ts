@@ -483,6 +483,14 @@ function mapGeminiFinish(reason: string): string {
   }
 }
 
+/** Just the upstream-addressing fields a model probe needs. */
+export interface ProbeConfig {
+  kind: ConnectionKind;
+  base_url: string;
+  api_key?: string | null;
+  extra_headers?: Record<string, string> | string | null;
+}
+
 /** Dispatches on kind: different auth headers, but every provider has a /models endpoint. */
 export async function testConnection(connectionId: string): Promise<{
   ok: boolean;
@@ -491,25 +499,49 @@ export async function testConnection(connectionId: string): Promise<{
 }> {
   const conn = getConnection(connectionId);
   if (!conn) return { ok: false, error: 'Connection not found' };
+  return testConnectionConfig({
+    kind: conn.kind,
+    base_url: conn.base_url,
+    api_key: conn.api_key,
+    extra_headers: conn.extra_headers,
+  });
+}
 
-  const base = conn.base_url.replace(/\/+$/, '');
+/**
+ * Stateless model probe — hits the provider's GET /models (or Gemini's
+ * equivalent) using config that hasn't necessarily been saved yet. This is
+ * what powers "Fetch models" in the connection form before you Save: any
+ * OpenAI-compatible endpoint just works, so there's no need to hardcode model
+ * lists per provider.
+ */
+export async function testConnectionConfig(cfg: ProbeConfig): Promise<{
+  ok: boolean;
+  models?: string[];
+  error?: string;
+}> {
+  if (!cfg.base_url) return { ok: false, error: 'Base URL is required' };
+
+  const base = cfg.base_url.replace(/\/+$/, '');
+  const extra = typeof cfg.extra_headers === 'string'
+    ? JSON.parse(cfg.extra_headers || '{}')
+    : (cfg.extra_headers ?? {});
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    ...JSON.parse(conn.extra_headers || '{}'),
+    ...extra,
   };
 
   let url = `${base}/models`;
-  switch (conn.kind) {
+  switch (cfg.kind) {
     case 'anthropic':
-      if (conn.api_key) headers['x-api-key'] = conn.api_key;
+      if (cfg.api_key) headers['x-api-key'] = cfg.api_key;
       headers['anthropic-version'] = '2023-06-01';
       break;
     case 'google':
       // Google's documented happy path: key in query string.
-      if (conn.api_key) url += `?key=${encodeURIComponent(conn.api_key)}`;
+      if (cfg.api_key) url += `?key=${encodeURIComponent(cfg.api_key)}`;
       break;
     default:
-      if (conn.api_key) headers['Authorization'] = `Bearer ${conn.api_key}`;
+      if (cfg.api_key) headers['Authorization'] = `Bearer ${cfg.api_key}`;
   }
 
   try {
@@ -517,7 +549,8 @@ export async function testConnection(connectionId: string): Promise<{
       method: 'GET',
       headers,
       signal: AbortSignal.timeout(10_000),
-    }, `testConnection:${conn.kind}`);
+    }, `models:${cfg.kind}`);
+
 
     if (!res.ok) {
 
