@@ -223,11 +223,24 @@ function bearerFrom(req: ExRequest): string | undefined {
   return undefined;
 }
 
-function buildCtx(req: ExRequest, set: Ctx['set']): Ctx {
-  // Bridge express request lifecycle to an AbortSignal so streaming handlers
-  // can abort the upstream fetch when the client disconnects.
+  // The Express Response is needed to detect a real client disconnect; see
+  // buildCtx. mountElysia passes it in.
+function buildCtx(req: ExRequest, res: ExResponse, set: Ctx['set']): Ctx {
+  // Bridge the express lifecycle to an AbortSignal so streaming handlers can
+  // abort the upstream fetch when the client *actually* goes away.
+  //
+  // NOTE: we listen on the RESPONSE's 'close', not the request's. In modern
+  // Node, `req`'s 'close' fires as soon as the request body has been fully
+  // read — which for a normal parsed JSON POST is immediately — so the old
+  // `req.on('close', abort)` aborted the upstream fetch ~2ms in, killing every
+  // generation with "This operation was aborted". `res`'s 'close' only fires
+  // when the socket closes; if the response already finished (`writableEnded`)
+  // that's the normal end-of-request and we must NOT abort.
   const ac = new AbortController();
-  req.on('close', () => ac.abort());
+  res.on('close', () => {
+    if (!res.writableEnded) ac.abort();
+  });
+
 
   // Merge multipart files (from multer) into body as File-like objects.
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -333,7 +346,8 @@ export function mountElysia(
 
     const handler = async (req: ExRequest, res: ExResponse, next: NextFunction) => {
       const set: Ctx['set'] = { status: 200, headers: {} };
-      const ctx = buildCtx(req, set);
+      const ctx = buildCtx(req, res, set);
+
       try {
         for (const bh of allBefore) {
           const early = await bh(ctx);

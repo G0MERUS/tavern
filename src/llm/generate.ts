@@ -730,7 +730,7 @@ async function loggedFetch(
   const dispatcher = proxyDispatcher();
   const via = cachedProxyUrl ? ` via proxy ${cachedProxyUrl}` : ' (direct, no proxy)';
   log.llm(`▶ ${label}: ${init.method ?? 'GET'} ${url}${via}`);
-  if (init.body) log.llm(`  request body: ${preview(init.body)}`);
+  if (init.body) log.llm(`  request body:\n${prettyBody(init.body)}`);
 
   const started = Date.now();
   try {
@@ -740,11 +740,39 @@ async function loggedFetch(
     const ms = Date.now() - started;
     const tag = res.ok ? '✔' : '✖';
     log.llm(`${tag} ${label}: ${res.status} ${res.statusText} (${ms}ms)`);
+    // On an upstream error, show the RAW response body — this is the actual
+    // provider error ("invalid api key", "model not found", a proxy's HTML 502,
+    // etc.). We clone so the caller can still read the body itself.
+    if (!res.ok) {
+      try {
+        const raw = await res.clone().text();
+        if (raw.trim()) log.error(`${label}: upstream error body:\n${prettyBody(raw)}`);
+      } catch { /* body unreadable — nothing more we can do */ }
+    }
     return res;
   } catch (err) {
     const ms = Date.now() - started;
-    log.error(`✖ ${label}: network error after ${ms}ms — ${(err as Error).message}`);
+    const e = err as Error & { cause?: unknown };
+    // fetch/undici wraps the real reason ("ECONNREFUSED", proxy TLS failure,
+    // DNS, abort) in `.cause`. Print BOTH — the top-level message is often the
+    // useless "fetch failed".
+    const cause = e.cause instanceof Error ? e.cause.message
+      : e.cause != null ? String(e.cause) : '';
+    log.error(`✖ ${label}: network error after ${ms}ms — ${e.message}${cause ? ` (cause: ${cause})` : ''}`);
     throw err;
   }
 }
+
+// Pretty-print a JSON request/response body ST-style: parsed and indented over
+// multiple lines so it's actually readable in the Termux console. Falls back to
+// the raw string (truncated) if it isn't JSON. Honours TAVERN_LOG=trace via
+// preview() for the not-JSON branch.
+function prettyBody(body: string): string {
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return preview(body);
+  }
+}
+
 
