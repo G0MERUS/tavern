@@ -57,4 +57,13 @@ npm install
 npm run build
 cd ..
 
+# --- 4. Hide project files from the Android gallery ------------------------
+# Android's MediaScanner indexes every folder it can read. It mistakes our
+# many `.ts` source files for MPEG-TS videos (they show up as 0:00 clips in
+# the Gallery) and pulls in avatar/background images too. An empty `.nomedia`
+# file makes the scanner skip this folder and everything under it.
+say "Adding .nomedia so the Gallery ignores project files"
+touch .nomedia
+
 say "Done. Now run:  ./start.sh"
+

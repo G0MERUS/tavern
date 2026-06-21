@@ -8,6 +8,8 @@ import { Elysia, mountElysia, type Ctx } from './_compat/elysia.ts';
 import { getConfig, requiresAuth } from './config.ts';
 import { blobDir } from './files/blobs.ts';
 import { AppError } from './types.ts';
+import { log } from './log.ts';
+
 
 import { healthRoutes } from './routes/health.ts';
 import { settingsRoutes } from './routes/settings.ts';
@@ -54,7 +56,33 @@ export function buildServer(): ServerHandle {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // Request log — every incoming request and its response status/time gets
+  // printed to the Termux console. Static blobs/assets are skipped so the log
+  // stays readable; the API and generation traffic (the interesting part) is
+  // always shown.
+  app.use((req, res, next) => {
+    const skip =
+      req.path.startsWith('/blobs/') ||
+      req.path.startsWith('/assets/') ||
+      req.path === '/favicon.ico';
+    if (skip) return next();
+
+    const started = Date.now();
+    log.http(`→ ${req.method} ${req.originalUrl}`);
+    res.on('finish', () => {
+      const ms = Date.now() - started;
+      const code = res.statusCode;
+      const arrow = code >= 500 ? '✗' : code >= 400 ? '!' : '←';
+      const msg = `${arrow} ${req.method} ${req.originalUrl} ${code} (${ms}ms)`;
+      if (code >= 500) log.error(msg);
+      else if (code >= 400) log.warn(msg);
+      else log.http(msg);
+    });
+    next();
+  });
+
   // Bearer auth gate — applied as a global beforeHandle inside mountElysia so
+
   // it only guards routed (API) handlers, not static assets.
   const authGate = ({ bearer, status }: Ctx) => {
     if (!authRequired) return;

@@ -30,11 +30,30 @@ let blobsRoot: string;
 
 /** Create blob directories. Idempotent. */
 export function initBlobs(): void {
-  blobsRoot = join(getConfig().dataDir, 'blobs');
+  const dataDir = getConfig().dataDir;
+  blobsRoot = join(dataDir, 'blobs');
   for (const kind of KINDS) mkdirSync(join(blobsRoot, kind), { recursive: true });
   mkdirSync(join(blobsRoot, '.thumbs', 'avatars'), { recursive: true });
   mkdirSync(join(blobsRoot, '.thumbs', 'backgrounds'), { recursive: true });
+
+  // Android: stop the gallery/MediaScanner from indexing our avatars and
+  // backgrounds (which otherwise show up as random images in the phone's
+  // Gallery) and our source/data files (which a `.ts` extension makes Android
+  // mistake for MPEG-TS "videos"). An empty `.nomedia` file in a directory
+  // tells MediaScanner to skip that directory and everything under it.
+  writeNoMedia(dataDir);
 }
+
+/** Drop an empty `.nomedia` marker in a directory (Android MediaScanner opt-out). */
+function writeNoMedia(dir: string): void {
+  try {
+    const marker = join(dir, '.nomedia');
+    if (!existsSync(marker)) writeFileSync(marker, '');
+  } catch {
+    // Non-Android filesystems / permission issues: harmless to skip.
+  }
+}
+
 
 export function blobDir(kind: BlobKind): string {
   return join(blobsRoot, kind);

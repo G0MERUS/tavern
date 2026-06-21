@@ -1,8 +1,13 @@
+import { ProxyAgent, type Dispatcher } from 'undici';
+
 import { getActive as getActiveConnection, getConnection } from '../core/connections.ts';
+
 import { getPreset } from '../core/presets.ts';
 import { getSetting } from '../core/settings.ts';
 import { getConfig } from '../config.ts';
+import { log, preview } from '../log.ts';
 import { AppError, type ChatMessage, type ConnectionRow, type ConnectionKind } from '../types.ts';
+
 
 // The upstream proxy. Three request shapers dispatched on connections.kind:
 //
@@ -237,19 +242,19 @@ export async function generate(req: GenerateRequest, signal?: AbortSignal): Prom
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await loggedFetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
       signal: composed,
-      ...proxyOpts(),
-    });
+    }, 'generate');
   } catch (err) {
     throw mapNetworkError(err);
   }
 
   if (!res.ok) throw await mapHttpError(res);
   return res.json();
+
 }
 
 /**
@@ -272,17 +277,17 @@ export async function* generateStream(
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await loggedFetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
       signal: composed,
-      ...proxyOpts(),
-    });
+    }, `generate:stream:${kind}`);
   } catch (err) {
     yield sseError(mapNetworkError(err));
     return;
   }
+
 
   if (!res.ok) {
     yield sseError(await mapHttpError(res));
@@ -508,13 +513,14 @@ export async function testConnection(connectionId: string): Promise<{
   }
 
   try {
-    const res = await fetch(url, {
+    const res = await loggedFetch(url, {
+      method: 'GET',
       headers,
       signal: AbortSignal.timeout(10_000),
-      ...proxyOpts(),
-    });
+    }, `testConnection:${conn.kind}`);
 
     if (!res.ok) {
+
       const text = await res.text().catch(() => '');
       return { ok: false, error: `${res.status} ${res.statusText}: ${text.slice(0, 300)}` };
     }
@@ -657,8 +663,55 @@ function composeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
   return AbortSignal.any(real);
 }
 
-/** Bun-specific: outbound proxy for the upstream fetch. */
-function proxyOpts(): { proxy?: string } {
-  const p = getConfig().outboundProxy;
-  return p ? { proxy: p } : {};
+// ── Outbound proxy + logging fetch ──────────────────────────────────────────
+// Node's global fetch (undici) ignores the Bun-only `{ proxy }` option, so the
+// outbound proxy used to silently do nothing. We route through undici's
+// ProxyAgent dispatcher instead — pure JS, works on Termux. http://, https://
+// and socks (via the proxy URL) are all accepted by undici.
+
+let cachedProxyUrl: string | undefined;
+let cachedAgent: ProxyAgent | undefined;
+
+function proxyDispatcher(): Dispatcher | undefined {
+  const url = getConfig().outboundProxy;
+  if (!url) return undefined;
+  if (url !== cachedProxyUrl) {
+    cachedProxyUrl = url;
+    cachedAgent = new ProxyAgent(url);
+    log.llm(`proxy configured → ${url}`);
+  }
+  return cachedAgent;
 }
+
+/**
+ * fetch wrapper that (a) routes through the configured outbound proxy and
+ * (b) logs the whole exchange to the Termux console: method, URL, which proxy
+ * (if any), request body, and the response status + timing. This is the
+ * single chokepoint for ALL upstream LLM traffic.
+ */
+async function loggedFetch(
+  url: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal },
+  label: string,
+): Promise<Response> {
+  const dispatcher = proxyDispatcher();
+  const via = cachedProxyUrl ? ` via proxy ${cachedProxyUrl}` : ' (direct, no proxy)';
+  log.llm(`▶ ${label}: ${init.method ?? 'GET'} ${url}${via}`);
+  if (init.body) log.llm(`  request body: ${preview(init.body)}`);
+
+  const started = Date.now();
+  try {
+    // dispatcher is an undici option; Node's fetch types don't declare it, so
+    // we widen to any for that one field. Functionally supported at runtime.
+    const res = await fetch(url, { ...init, ...(dispatcher ? { dispatcher } : {}) } as RequestInit);
+    const ms = Date.now() - started;
+    const tag = res.ok ? '✔' : '✖';
+    log.llm(`${tag} ${label}: ${res.status} ${res.statusText} (${ms}ms)`);
+    return res;
+  } catch (err) {
+    const ms = Date.now() - started;
+    log.error(`✖ ${label}: network error after ${ms}ms — ${(err as Error).message}`);
+    throw err;
+  }
+}
+
