@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 .pnp.*
+# npm lockfiles — this repo uses bun (bun.lock). A stray package-lock.json gets
+# created if you run `npm install` for a one-off check; never commit it.
+package-lock.json
+
 
 # Bun
 .bun/
