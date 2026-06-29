@@ -1,4 +1,4 @@
-# Tavern
+# TavernA
 
 A from-scratch rewrite of the SillyTavern backend. **Single-user, local-first** roleplay chat server: stores characters/chats/lorebooks in SQLite, reads/writes V2/V3 PNG character cards, proxies one OAI-compatible upstream at a time.
 
